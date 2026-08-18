@@ -134,7 +134,7 @@
     <label>複数行の扱い</label>
     <div class="switch">
       <input type="checkbox" id="treeMode">
-      <label for="treeMode">1行目を親、2行目以降をその子項目としてツリーで送る（行頭の Tab・全角スペースでさらに深い階層になります）。オフにすると改行込みで1項目として送ります</label>
+      <label for="treeMode">1行目を親、2行目以降をその子項目としてツリーで送る（行頭のスペース1つで1段深くなります。半角・全角どちらでも同じです）。オフにすると改行込みで1項目として送ります</label>
     </div>
 
     <label>送信履歴</label>
@@ -184,25 +184,21 @@ async function api(path, body){
 }
 
 /* 入力を「1行目＝親／2行目以降＝子」のツリーに分解する。
-   行頭の Tab・全角スペース1つ・半角スペース2つで1段深くなる。 */
+   行頭のスペース1つ（半角・全角どちらでも）または Tab 1つで1段深くなる。 */
 function parseTree(text){
   const lines = text.split('\n').filter(l => l.trim());
   if (!lines.length) return null;
   const parsed = lines.map(l => {
     const indent = (l.match(/^[\t \u3000]*/) || [''])[0];
-    let lvl = 0;
-    for (const ch of indent) lvl += (ch === '\t' || ch === '\u3000') ? 1 : 0.5;
-    return { lvl: Math.floor(lvl), content: l.trim().replace(/^[-*・]\s*/, '') };
+    return { lvl: indent.length, content: l.trim().replace(/^[-*・]\s*/, '') };
   });
   const root = parsed.shift().content;
   const nodes = [];
-  let prev = 0;                                   // 親（root）の深さを 0 とする
+  const stack = [];                               // 祖先の字下げ幅。深さ = stack.length
   for (const it of parsed){
-    let d = it.lvl + 1;                           // インデント無し = root の直下
-    if (d > prev + 1) d = prev + 1;               // 飛び級はさせない
-    if (d < 1) d = 1;
-    nodes.push({ content: it.content, depth: d });
-    prev = d;
+    while (stack.length && it.lvl < stack[stack.length - 1]) stack.pop();
+    if (!stack.length || it.lvl > stack[stack.length - 1]) stack.push(it.lvl);
+    nodes.push({ content: it.content, depth: stack.length });
   }
   return { root, nodes };
 }
