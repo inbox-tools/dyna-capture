@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' 'unsafe-inline'; style-src 'unsafe-inline'; img-src 'self'; manifest-src 'self'; connect-src https://dynalist.io; worker-src 'self'; base-uri 'none'; form-action 'self'">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
+<title>Dyna Capture</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Capture">
+<meta name="theme-color" content="#0f1216">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<style>
+  :root{
+    --bg:#0f1216; --panel:#171c22; --panel2:#1e242c; --line:#2a323c;
+    --fg:#e8edf3; --muted:#8b97a5; --accent:#3ddc97; --accent-ink:#06281c; --danger:#ff6b6b;
+    --radius:14px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{height:100%}
+  body{
+    margin:0; background:var(--bg); color:var(--fg);
+    font:16px/1.5 -apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+    display:flex; flex-direction:column;
+    padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    overscroll-behavior:none; overflow-x:hidden;
+  }
+  header{
+    display:flex; align-items:center; gap:8px; padding:10px 14px 6px;
+  }
+  header .title{font-weight:700; letter-spacing:.02em; font-size:15px}
+  header .state{font-size:12px; color:var(--muted); margin-left:auto}
+  .iconbtn{
+    background:var(--panel); border:1px solid var(--line); color:var(--fg);
+    width:34px; height:34px; border-radius:10px; font-size:15px; line-height:1;
+    display:grid; place-items:center; cursor:pointer;
+  }
+  main{flex:1; display:flex; flex-direction:column; padding:0 12px; min-height:0}
+  textarea{
+    width:100%; background:var(--panel); color:var(--fg); border:1px solid var(--line);
+    border-radius:var(--radius); padding:14px; font:inherit; resize:none; outline:none;
+  }
+  textarea:focus{border-color:#3d4a58}
+  #content{flex:1; min-height:120px; font-size:17px}
+  #note{height:74px; margin-top:8px; font-size:15px; color:#c7d0da}
+  .chips{display:flex; gap:6px; overflow-x:auto; padding:8px 0 2px; scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{
+    flex:0 0 auto; background:var(--panel2); border:1px solid var(--line); color:#cfd8e2;
+    border-radius:999px; padding:7px 12px; font-size:13px; cursor:pointer; white-space:nowrap;
+  }
+  .chip.toggle.on{background:var(--accent); color:var(--accent-ink); border-color:var(--accent); font-weight:700}
+  footer{padding:8px 12px calc(10px + env(safe-area-inset-bottom))}
+  #send{
+    width:100%; padding:16px; border:0; border-radius:var(--radius);
+    background:var(--accent); color:var(--accent-ink); font-size:17px; font-weight:800; cursor:pointer;
+  }
+  #send:disabled{opacity:.45}
+  .toast{
+    position:fixed; left:50%; transform:translateX(-50%); bottom:calc(84px + env(safe-area-inset-bottom));
+    background:#000c; border:1px solid var(--line); color:#fff; padding:10px 16px; border-radius:999px;
+    font-size:14px; opacity:0; transition:opacity .2s; pointer-events:none; max-width:88vw; text-align:center;
+  }
+  .toast.show{opacity:1}
+  .toast.err{background:#3a1414e6; border-color:#7a2b2b; color:#ffd9d9}
+  dialog{
+    border:0; padding:0; background:transparent; color:var(--fg);
+    position:fixed; inset:auto 0 0 0; width:auto; max-width:none; margin:0;
+  }
+  dialog::backdrop{background:#000a}
+  .sheet{
+    background:var(--panel); border:1px solid var(--line); border-radius:18px 18px 0 0;
+    padding:18px 16px calc(20px + env(safe-area-inset-bottom)); max-height:88vh; overflow:auto;
+  }
+  .sheet h2{margin:0 0 12px; font-size:16px}
+  .sheet label{display:block; font-size:13px; color:var(--muted); margin:14px 0 6px}
+  .sheet input,.sheet textarea{
+    width:100%; background:var(--panel2); border:1px solid var(--line); color:var(--fg);
+    border-radius:10px; padding:12px; font:inherit; outline:none;
+  }
+  .row{display:flex; gap:8px; margin-top:16px}
+  .row button{flex:1; padding:13px; border-radius:12px; border:1px solid var(--line); background:var(--panel2); color:var(--fg); font-size:15px; font-weight:600; cursor:pointer}
+  .row button.primary{background:var(--accent); color:var(--accent-ink); border-color:var(--accent)}
+  .hint{font-size:12px; color:var(--muted); margin-top:8px; line-height:1.7}
+  .hint a{color:var(--accent)}
+  .switch{display:flex; gap:8px; align-items:flex-start; margin-top:4px}
+  .switch input{width:20px; height:20px; flex:0 0 auto; accent-color:var(--accent); margin-top:2px}
+  .switch label{margin:0; font-size:13px; color:#bcc7d3; line-height:1.6}
+  .hist{margin-top:6px; border-top:1px solid var(--line); padding-top:10px}
+  .hist div{font-size:13px; color:var(--muted); padding:7px 0; border-bottom:1px solid #ffffff0d; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+</style>
+</head>
+<body>
+
+<header>
+  <span class="title">Dyna Capture</span>
+  <span class="state" id="state"></span>
+  <button class="iconbtn" id="openDyna" title="Dynalistを開く">↗</button>
+  <button class="iconbtn" id="openCfg" title="設定">⚙</button>
+</header>
+
+<main>
+  <textarea id="content" placeholder="思いついたことを書く" autocapitalize="sentences" enterkeyhint="enter"></textarea>
+  <div class="chips" id="chips"></div>
+  <textarea id="note" placeholder="ノート（任意）" hidden></textarea>
+</main>
+
+<footer>
+  <button id="send">Dynalist の Inbox に送る</button>
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<dialog id="cfg">
+  <form method="dialog" class="sheet">
+    <h2>設定</h2>
+
+    <label>API トークン</label>
+    <input id="token" type="password" placeholder="Dynalist の Developer ページで取得" autocomplete="off">
+    <div class="hint">
+      <a href="https://dynalist.io/developer" target="_blank" rel="noopener">dynalist.io/developer</a> で発行 →
+      Dynalist 側で Inbox にしたい項目を右クリック →「Set as inbox」で保存先を先に決めておく。
+      トークンはこの端末の中だけに保存され、どこにも送信されません（送信先は Dynalist 公式 API のみ）。
+    </div>
+
+    <label>定型文（1行1つ・上から順にボタンになる）</label>
+    <textarea id="tmpl" rows="5" placeholder="#タスク&#10;#アイデア&#10;#買う"></textarea>
+
+    <label>送信履歴</label>
+    <div class="switch">
+      <input type="checkbox" id="keepHist">
+      <label for="keepHist">この端末に本文を残す（既定はオフ。オフなら送信した内容は端末に一切保存されません）</label>
+    </div>
+    <div class="hist" id="hist"></div>
+
+    <div class="row">
+      <button value="cancel" type="submit">閉じる</button>
+      <button class="primary" id="save" value="save" type="submit">保存</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+const API = 'https://dynalist.io/api/v1/inbox/add';
+const $ = s => document.querySelector(s);
+const LS = {
+  get:(k,d)=>{ try{ return JSON.parse(localStorage.getItem(k)) ?? d }catch(e){ return d } },
+  set:(k,v)=> localStorage.setItem(k, JSON.stringify(v))
+};
+
+let token   = LS.get('dc.token','');
+let tmpl    = LS.get('dc.tmpl',['#タスク','#アイデア','#あとで読む']);
+let queue   = LS.get('dc.queue',[]);
+let hist    = LS.get('dc.hist',[]);
+let keepHist= LS.get('dc.keepHist', false);
+let checkbox= false;
+
+/* ---------- 送信 ---------- */
+async function post(item){
+  const res = await fetch(API, {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({
+      token, content:item.content, note:item.note||'', checkbox:!!item.checkbox
+    })
+  });
+  const j = await res.json();
+  if (j._code !== 'Ok'){
+    const e = new Error(msgFor(j._code, j._msg));
+    e.code = j._code;
+    throw e;
+  }
+}
+function msgFor(code, msg){
+  return ({
+    InvalidToken:'トークンが違います。設定を確認してください',
+    NoInbox:'Dynalist 側で Inbox が未設定です',
+    LockFail:'Dynalist 側がロック中。少し待って再送します',
+    TooManyRequests:'送信が多すぎます。少し待ってください',
+    Invalid:'リクエストが不正です'
+  })[code] || (msg || code || '送信に失敗しました');
+}
+/* 恒久エラー（再送しても無駄）かどうか */
+const fatal = code => ['InvalidToken','NoInbox','Invalid'].includes(code);
+
+async function flush(silent){
+  if (!queue.length || !token) return;
+  while (queue.length){
+    try{
+      await post(queue[0]);
+      pushHist(queue.shift());
+      LS.set('dc.queue', queue);
+    }catch(e){
+      if (fatal(e.code)){ if(!silent) toast(msgFor(e.code), true); }
+      break;
+    }
+  }
+  paintState();
+  if (!queue.length && !silent) toast('未送信分を送りました');
+}
+
+async function send(){
+  const content = $('#content').value.trim();
+  const note    = $('#note').value.trim();
+  if (!content && !note) return;
+  if (!token){ openCfg(); return toast('先に API トークンを設定してください', true); }
+
+  const item = { content: content || note, note: content ? note : '', checkbox, at: Date.now() };
+  $('#send').disabled = true;
+  try{
+    await flush(true);            // 溜まっていた分を先に流す
+    await post(item);
+    pushHist(item);
+    clearInput();
+    toast('送信しました ✓');
+  }catch(e){
+    if (fatal(e.code)){
+      toast(msgFor(e.code), true);
+    }else{
+      queue.push(item); LS.set('dc.queue', queue);
+      clearInput();
+      toast('オフラインのため端末に保存しました（あとで自動送信）');
+    }
+  }finally{
+    $('#send').disabled = false;
+    paintState();
+  }
+}
+
+function clearInput(){
+  $('#content').value=''; $('#note').value=''; $('#note').hidden = true;
+  checkbox=false; paintChips(); $('#content').focus();
+}
+function pushHist(item){
+  if (!keepHist) return;                 // 既定では本文を端末に残さない
+  hist.unshift({c:item.content, at:item.at||Date.now()});
+  hist = hist.slice(0,30); LS.set('dc.hist',hist);
+}
+
+/* ---------- UI ---------- */
+function toast(msg, err){
+  const t = $('#toast'); t.textContent = msg;
+  t.className = 'toast show' + (err ? ' err' : '');
+  clearTimeout(t._t); t._t = setTimeout(()=> t.className='toast', 2600);
+}
+function paintState(){
+  const s = [];
+  if (!token) s.push('未設定');
+  if (queue.length) s.push('未送信 ' + queue.length);
+  if (!navigator.onLine) s.push('オフライン');
+  $('#state').textContent = s.join(' / ');
+}
+function paintChips(){
+  const c = $('#chips'); c.innerHTML = '';
+  const add = (label, fn, cls) => {
+    const b = document.createElement('button');
+    b.type='button'; b.className = 'chip ' + (cls||''); b.textContent = label;
+    b.onclick = e => { e.preventDefault(); fn(); };
+    c.appendChild(b);
+  };
+  add('☑ タスク化', ()=>{ checkbox=!checkbox; paintChips(); }, 'toggle' + (checkbox?' on':''));
+  add('📅 日付',  ()=> insert(fmt(false)));
+  add('🕒 時刻',  ()=> insert(fmt(true)));
+  add('📝 ノート',()=>{ const n=$('#note'); n.hidden=!n.hidden; if(!n.hidden) n.focus(); });
+  tmpl.filter(Boolean).forEach(t => add(t, ()=> insert(t + ' ')));
+}
+function fmt(withTime){
+  const d = new Date(), p = n => String(n).padStart(2,'0');
+  const s = `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}`;
+  return withTime ? `${s} ${p(d.getHours())}:${p(d.getMinutes())} ` : s + ' ';
+}
+function insert(text){
+  const el = $('#note').hidden || document.activeElement !== $('#note') ? $('#content') : $('#note');
+  const s = el.selectionStart ?? el.value.length, e = el.selectionEnd ?? s;
+  el.value = el.value.slice(0,s) + text + el.value.slice(e);
+  el.focus(); el.selectionStart = el.selectionEnd = s + text.length;
+}
+function openCfg(){
+  $('#token').value = token;
+  $('#tmpl').value  = tmpl.join('\n');
+  $('#keepHist').checked = keepHist;
+  $('#hist').innerHTML = !keepHist ? '<div>保存していません</div>' : hist.length
+    ? hist.map(h => `<div>${new Date(h.at).toLocaleString('ja-JP',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}　${esc(h.c)}</div>`).join('')
+    : '<div>まだありません</div>';
+  $('#cfg').showModal();
+}
+const esc = s => s.replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m]));
+
+$('#openCfg').onclick = openCfg;
+$('#openDyna').onclick = ()=> location.href = 'https://dynalist.io/';
+$('#send').onclick = send;
+$('#cfg').addEventListener('close', ()=>{
+  if ($('#cfg').returnValue === 'save'){
+    token = $('#token').value.trim(); LS.set('dc.token', token);
+    tmpl  = $('#tmpl').value.split('\n').map(s=>s.trim()).filter(Boolean); LS.set('dc.tmpl', tmpl);
+    keepHist = $('#keepHist').checked; LS.set('dc.keepHist', keepHist);
+    if (!keepHist){ hist = []; LS.set('dc.hist', hist); }
+    paintChips(); paintState(); flush(true); toast('保存しました');
+  }
+});
+/* ⌘/Ctrl + Enter で送信 */
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); send(); }
+});
+window.addEventListener('online',  ()=>{ paintState(); flush(); });
+window.addEventListener('offline', paintState);
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden){ paintState(); flush(true); } });
+
+paintChips(); paintState();
+setTimeout(()=> $('#content').focus(), 60);
+if (!token) setTimeout(openCfg, 200); else flush(true);
+
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
