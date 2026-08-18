@@ -105,7 +105,7 @@
 </header>
 
 <main>
-  <textarea id="content" placeholder="思いついたことを書く" autocapitalize="sentences" enterkeyhint="enter"></textarea>
+  <textarea id="content" placeholder="思いついたことを書く（改行すると子項目になります）" autocapitalize="sentences" enterkeyhint="enter"></textarea>
   <div class="chips" id="chips"></div>
   <textarea id="note" placeholder="ノート（任意）" hidden></textarea>
 </main>
@@ -131,6 +131,12 @@
     <label>定型文（1行1つ・上から順にボタンになる）</label>
     <textarea id="tmpl" rows="5" placeholder="#タスク&#10;#アイデア&#10;#買う"></textarea>
 
+    <label>複数行の扱い</label>
+    <div class="switch">
+      <input type="checkbox" id="treeMode">
+      <label for="treeMode">1行目を親、2行目以降をその子項目としてツリーで送る（行頭の Tab・全角スペースでさらに深い階層になります）。オフにすると改行込みで1項目として送ります</label>
+    </div>
+
     <label>送信履歴</label>
     <div class="switch">
       <input type="checkbox" id="keepHist">
@@ -146,7 +152,7 @@
 </dialog>
 
 <script>
-const API = 'https://dynalist.io/api/v1/inbox/add';
+const API = 'https://dynalist.io/api/v1/';
 const $ = s => document.querySelector(s);
 const LS = {
   get:(k,d)=>{ try{ return JSON.parse(localStorage.getItem(k)) ?? d }catch(e){ return d } },
@@ -158,16 +164,15 @@ let tmpl    = LS.get('dc.tmpl',['#タスク','#アイデア','#あとで読む']
 let queue   = LS.get('dc.queue',[]);
 let hist    = LS.get('dc.hist',[]);
 let keepHist= LS.get('dc.keepHist', false);
+let treeMode= LS.get('dc.tree', true);
 let checkbox= false;
 
 /* ---------- 送信 ---------- */
-async function post(item){
-  const res = await fetch(API, {
+async function api(path, body){
+  const res  = await fetch(API + path, {
     method:'POST',
     headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({
-      token, content:item.content, note:item.note||'', checkbox:!!item.checkbox
-    })
+    body: JSON.stringify(Object.assign({token}, body))
   });
   const j = await res.json();
   if (j._code !== 'Ok'){
@@ -175,6 +180,75 @@ async function post(item){
     e.code = j._code;
     throw e;
   }
+  return j;
+}
+
+/* 入力を「1行目＝親／2行目以降＝子」のツリーに分解する。
+   行頭の Tab・全角スペース1つ・半角スペース2つで1段深くなる。 */
+function parseTree(text){
+  const lines = text.split('\n').filter(l => l.trim());
+  if (!lines.length) return null;
+  const parsed = lines.map(l => {
+    const indent = (l.match(/^[\t \u3000]*/) || [''])[0];
+    let lvl = 0;
+    for (const ch of indent) lvl += (ch === '\t' || ch === '\u3000') ? 1 : 0.5;
+    return { lvl: Math.floor(lvl), content: l.trim().replace(/^[-*・]\s*/, '') };
+  });
+  const root = parsed.shift().content;
+  const nodes = [];
+  let prev = 0;                                   // 親（root）の深さを 0 とする
+  for (const it of parsed){
+    let d = it.lvl + 1;                           // インデント無し = root の直下
+    if (d > prev + 1) d = prev + 1;               // 飛び級はさせない
+    if (d < 1) d = 1;
+    nodes.push({ content: it.content, depth: d });
+    prev = d;
+  }
+  return { root, nodes };
+}
+
+/* 子項目を階層ごとにまとめて挿入する。1階層 = doc/edit 1回 */
+async function insertChildren(file_id, rootId, nodes, checkbox){
+  const ids = new Array(nodes.length);
+  const parentOf = i => {
+    for (let j = i - 1; j >= 0; j--)
+      if (nodes[j].depth === nodes[i].depth - 1) return ids[j] || rootId;
+    return rootId;
+  };
+  const maxDepth = Math.max(...nodes.map(n => n.depth));
+  for (let d = 1; d <= maxDepth; d++){
+    const idx = nodes.map((n, i) => n.depth === d ? i : -1).filter(i => i >= 0);
+    if (!idx.length) continue;
+    try{
+      const r = await api('doc/edit', {
+        file_id,
+        changes: idx.map(i => ({
+          action:'insert', parent_id: d === 1 ? rootId : parentOf(i),
+          index:-1, content: nodes[i].content, checkbox
+        }))
+      });
+      (r.new_node_ids || []).forEach((id, k) => { ids[idx[k]] = id; });
+    }catch(e){
+      // 親は送信済み。残りだけをキューに回す（再送時は root 直下に並ぶ）
+      const rest = nodes.filter((n, i) => !ids[i] && n.depth >= d);
+      if (rest.length) { queue.push({t:'children', file_id, parent_id:rootId, checkbox,
+                                     nodes: rest.map(n => ({content:n.content, depth:1})), at:Date.now()});
+                         LS.set('dc.queue', queue); }
+      throw e;
+    }
+  }
+}
+
+async function post(item){
+  if (item.t === 'children'){
+    await insertChildren(item.file_id, item.parent_id, item.nodes, !!item.checkbox);
+    return;
+  }
+  const tree = treeMode ? parseTree(item.content) : null;
+  const root = tree ? tree.root : item.content;
+  const r = await api('inbox/add', { content: root, note: item.note || '', checkbox: !!item.checkbox });
+  if (tree && tree.nodes.length)
+    await insertChildren(r.file_id, r.node_id, tree.nodes, !!item.checkbox);
 }
 function msgFor(code, msg){
   return ({
@@ -210,7 +284,7 @@ async function send(){
   if (!content && !note) return;
   if (!token){ openCfg(); return toast('先に API トークンを設定してください', true); }
 
-  const item = { content: content || note, note: content ? note : '', checkbox, at: Date.now() };
+  const item = { t:'text', content: content || note, note: content ? note : '', checkbox, at: Date.now() };
   $('#send').disabled = true;
   try{
     await flush(true);            // 溜まっていた分を先に流す
@@ -237,7 +311,7 @@ function clearInput(){
   checkbox=false; paintChips(); $('#content').focus();
 }
 function pushHist(item){
-  if (!keepHist) return;                 // 既定では本文を端末に残さない
+  if (!keepHist || item.t === 'children') return;                 // 既定では本文を端末に残さない
   hist.unshift({c:item.content, at:item.at||Date.now()});
   hist = hist.slice(0,30); LS.set('dc.hist',hist);
 }
@@ -283,6 +357,7 @@ function insert(text){
 function openCfg(){
   $('#token').value = token;
   $('#tmpl').value  = tmpl.join('\n');
+  $('#treeMode').checked = treeMode;
   $('#keepHist').checked = keepHist;
   $('#hist').innerHTML = !keepHist ? '<div>保存していません</div>' : hist.length
     ? hist.map(h => `<div>${new Date(h.at).toLocaleString('ja-JP',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}　${esc(h.c)}</div>`).join('')
@@ -298,6 +373,7 @@ $('#cfg').addEventListener('close', ()=>{
   if ($('#cfg').returnValue === 'save'){
     token = $('#token').value.trim(); LS.set('dc.token', token);
     tmpl  = $('#tmpl').value.split('\n').map(s=>s.trim()).filter(Boolean); LS.set('dc.tmpl', tmpl);
+    treeMode = $('#treeMode').checked; LS.set('dc.tree', treeMode);
     keepHist = $('#keepHist').checked; LS.set('dc.keepHist', keepHist);
     if (!keepHist){ hist = []; LS.set('dc.hist', hist); }
     paintChips(); paintState(); flush(true); toast('保存しました');
