@@ -1,4 +1,4 @@
-const CACHE = 'dyna-capture-v3';
+const CACHE = 'dyna-capture-v4';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon-180.png', './icon-512.png'];
 
 self.addEventListener('install', e => {

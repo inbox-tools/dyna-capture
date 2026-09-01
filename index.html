@@ -203,14 +203,18 @@ function parseTree(text){
   return { root, nodes };
 }
 
-/* 子項目を階層ごとにまとめて挿入する。1階層 = doc/edit 1回 */
-async function insertChildren(file_id, rootId, nodes, checkbox){
+/* 子項目を階層ごとにまとめて挿入する。1階層 = doc/edit 1回
+   注意: Dynalist の index:-1 は「末尾追加」ではなく先頭挿入として効き、
+   一括送信分が逆順になる。必ず 0,1,2… と親ごとに明示指定する。
+   rootStart は再送時に root 直下の既存子の後ろへ続けるための開始位置 */
+async function insertChildren(file_id, rootId, nodes, checkbox, rootStart = 0){
   const ids = new Array(nodes.length);
   const parentOf = i => {
     for (let j = i - 1; j >= 0; j--)
       if (nodes[j].depth === nodes[i].depth - 1) return ids[j] || rootId;
     return rootId;
   };
+  const nextIndex = new Map([[rootId, rootStart]]);   // 親ID → 次に入れる位置
   const maxDepth = Math.max(...nodes.map(n => n.depth));
   for (let d = 1; d <= maxDepth; d++){
     const idx = nodes.map((n, i) => n.depth === d ? i : -1).filter(i => i >= 0);
@@ -218,16 +222,20 @@ async function insertChildren(file_id, rootId, nodes, checkbox){
     try{
       const r = await api('doc/edit', {
         file_id,
-        changes: idx.map(i => ({
-          action:'insert', parent_id: d === 1 ? rootId : parentOf(i),
-          index:-1, content: nodes[i].content, checkbox
-        }))
+        changes: idx.map(i => {
+          const pid = d === 1 ? rootId : parentOf(i);
+          const at = nextIndex.get(pid) || 0;
+          nextIndex.set(pid, at + 1);
+          return { action:'insert', parent_id: pid, index: at, content: nodes[i].content, checkbox };
+        })
       });
       (r.new_node_ids || []).forEach((id, k) => { ids[idx[k]] = id; });
     }catch(e){
-      // 親は送信済み。残りだけをキューに回す（再送時は root 直下に並ぶ）
+      // 親は送信済み。残りだけをキューに回す（再送時は root 直下・送信済み分の後ろに並ぶ）
       const rest = nodes.filter((n, i) => !ids[i] && n.depth >= d);
+      const sentTop = nodes.filter((n, i) => ids[i] && n.depth === 1).length;
       if (rest.length) { queue.push({t:'children', file_id, parent_id:rootId, checkbox,
+                                     start: rootStart + sentTop,
                                      nodes: rest.map(n => ({content:n.content, depth:1})), at:Date.now()});
                          LS.set('dc.queue', queue); }
       throw e;
@@ -237,7 +245,7 @@ async function insertChildren(file_id, rootId, nodes, checkbox){
 
 async function post(item){
   if (item.t === 'children'){
-    await insertChildren(item.file_id, item.parent_id, item.nodes, !!item.checkbox);
+    await insertChildren(item.file_id, item.parent_id, item.nodes, !!item.checkbox, item.start || 0);
     return;
   }
   const tree = treeMode ? parseTree(item.content) : null;
