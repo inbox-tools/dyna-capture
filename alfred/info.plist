@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>bundleid</key>
+	<string>io.github.inbox-tools.dynacapture</string>
+	<key>category</key>
+	<string>Productivity</string>
+	<key>connections</key>
+	<dict>
+		<key>6A1B0C7E-0001-4D2A-9C11-DC0000000001</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>6A1B0C7E-0002-4D2A-9C11-DC0000000002</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
+		<key>6A1B0C7E-0002-4D2A-9C11-DC0000000002</key>
+		<array>
+			<dict>
+				<key>destinationuid</key>
+				<string>6A1B0C7E-0003-4D2A-9C11-DC0000000003</string>
+				<key>modifiers</key>
+				<integer>0</integer>
+				<key>modifiersubtext</key>
+				<string></string>
+				<key>vitoclose</key>
+				<false/>
+			</dict>
+		</array>
+	</dict>
+	<key>createdby</key>
+	<string>inbox-tools</string>
+	<key>description</key>
+	<string>Alfred から Dynalist の Inbox へ直送する（Dyna Capture）</string>
+	<key>disabled</key>
+	<false/>
+	<key>name</key>
+	<string>Dyna Capture</string>
+	<key>objects</key>
+	<array>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>alfredfiltersresults</key>
+				<false/>
+				<key>alfredfiltersresultsmatchmode</key>
+				<integer>0</integer>
+				<key>argumenttreatemptyqueryasnil</key>
+				<false/>
+				<key>argumenttrimmode</key>
+				<integer>0</integer>
+				<key>argumenttype</key>
+				<integer>1</integer>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>keyword</key>
+				<string>capture</string>
+				<key>queuedelaycustom</key>
+				<integer>3</integer>
+				<key>queuedelayimmediatelyinitially</key>
+				<true/>
+				<key>queuedelaymode</key>
+				<integer>0</integer>
+				<key>queuemode</key>
+				<integer>1</integer>
+				<key>runningsubtext</key>
+				<string>Dynalist に送っています…</string>
+				<key>script</key>
+				<string>./capture.py filter "$1" "{query}"</string>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>scriptfile</key>
+				<string></string>
+				<key>subtext</key>
+				<string>本文を打つと Inbox に直送。空のまま決定で入力窓を開く</string>
+				<key>title</key>
+				<string>Dyna Capture</string>
+				<key>type</key>
+				<integer>0</integer>
+				<key>withspace</key>
+				<true/>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.input.scriptfilter</string>
+			<key>uid</key>
+			<string>6A1B0C7E-0001-4D2A-9C11-DC0000000001</string>
+			<key>version</key>
+			<integer>3</integer>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>concurrently</key>
+				<false/>
+				<key>escaping</key>
+				<integer>102</integer>
+				<key>script</key>
+				<string>./capture.py send "$1" "{query}"</string>
+				<key>scriptargtype</key>
+				<integer>1</integer>
+				<key>scriptfile</key>
+				<string></string>
+				<key>type</key>
+				<integer>0</integer>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.action.script</string>
+			<key>uid</key>
+			<string>6A1B0C7E-0002-4D2A-9C11-DC0000000002</string>
+			<key>version</key>
+			<integer>2</integer>
+		</dict>
+		<dict>
+			<key>config</key>
+			<dict>
+				<key>lastpathcomponent</key>
+				<false/>
+				<key>onlyshowifquerypopulated</key>
+				<true/>
+				<key>removeextension</key>
+				<false/>
+				<key>text</key>
+				<string>{query}</string>
+				<key>title</key>
+				<string>Dyna Capture</string>
+			</dict>
+			<key>type</key>
+			<string>alfred.workflow.output.notification</string>
+			<key>uid</key>
+			<string>6A1B0C7E-0003-4D2A-9C11-DC0000000003</string>
+			<key>version</key>
+			<integer>1</integer>
+		</dict>
+	</array>
+	<key>readme</key>
+	<string>capture 思いついたこと            → Dynalist の Inbox に1項目
+capture 親 // 子1 // 子2          → 親の下に子項目
+capture 親 // 子 /// 孫           → スラッシュを1本増やすと1段深くなる
+capture（本文なし）               → 入力窓（PWA）を開く
+⌘ を押しながら決定                → チェックボックス付き（タスク）で送る
+
+API トークンは macOS キーチェーン（サービス名 dynalist-api）から読む。ワークフロー内には保存していない。</string>
+	<key>uidata</key>
+	<dict>
+		<key>6A1B0C7E-0001-4D2A-9C11-DC0000000001</key>
+		<dict>
+			<key>xpos</key>
+			<integer>40</integer>
+			<key>ypos</key>
+			<integer>40</integer>
+		</dict>
+		<key>6A1B0C7E-0002-4D2A-9C11-DC0000000002</key>
+		<dict>
+			<key>xpos</key>
+			<integer>300</integer>
+			<key>ypos</key>
+			<integer>40</integer>
+		</dict>
+		<key>6A1B0C7E-0003-4D2A-9C11-DC0000000003</key>
+		<dict>
+			<key>xpos</key>
+			<integer>560</integer>
+			<key>ypos</key>
+			<integer>40</integer>
+		</dict>
+	</dict>
+	<key>variablesdontexport</key>
+	<array/>
+	<key>version</key>
+	<string>1.0.0</string>
+	<key>webaddress</key>
+	<string>https://github.com/inbox-tools/dyna-capture</string>
+</dict>
+</plist>
